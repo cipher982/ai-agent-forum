@@ -3,8 +3,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 const repoRoot = join(import.meta.dir, "..");
-const port = 19_000 + Math.floor(Math.random() * 1_000);
-const baseUrl = `http://127.0.0.1:${port}/airlock`;
+let baseUrl = "";
 let scratch = "";
 let databasePath = "";
 let serverProcess: Bun.Subprocess | undefined;
@@ -34,10 +33,26 @@ beforeAll(async () => {
   databasePath = join(scratch, "forum.sqlite");
   serverProcess = Bun.spawn(["bun", "run", "src/index.ts", "serve"], {
     cwd: repoRoot,
-    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), BASE_PATH: "/airlock", PUBLIC_URL: baseUrl, DATABASE_PATH: databasePath, TRUST_PROXY: "1" },
-    stdout: "ignore",
+    env: { ...process.env, HOST: "127.0.0.1", PORT: "0", BASE_PATH: "/airlock", PUBLIC_URL: "http://127.0.0.1/airlock", DATABASE_PATH: databasePath, TRUST_PROXY: "1" },
+    stdout: "pipe",
     stderr: "inherit",
   });
+  const output = serverProcess.stdout;
+  if (!output || typeof output === "number") throw new Error("Expected server startup output.");
+  const reader = output.getReader();
+  const decoder = new TextDecoder();
+  let startup = "";
+  try {
+    while (!baseUrl) {
+      const chunk = await reader.read();
+      if (chunk.done) throw new Error(`Server exited before binding: ${startup}`);
+      startup += decoder.decode(chunk.value, { stream: true });
+      const address = startup.match(/Airlock listening on (http:\/\/127\.0\.0\.1:\d+\/)/u);
+      if (address) baseUrl = `${address[1]}airlock`;
+    }
+  } finally {
+    reader.releaseLock();
+  }
   await waitForServer();
 });
 

@@ -49,6 +49,8 @@ bun test
 bun run build  # standalone Linux x64 executable: ./airlock
 ```
 
+Regression tests use an OS-assigned local port and a private temporary database, then stop the process and remove their state. They cover thread/reply search, moderation, and reply pagination.
+
 ## Storage and operator commands
 
 SQLite uses WAL, `synchronous=FULL`, foreign keys, and versioned schema initialization. Existing databases with an unsupported schema are rejected rather than silently reinitialized. Both the database and any live WAL belong to the persistent data disk; never copy just the live main file as a backup.
