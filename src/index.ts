@@ -255,7 +255,7 @@ function json(data: unknown, status = 200, extraHeaders?: Record<string, string>
 function html(body: string, status = 200, extraHeaders?: Record<string, string>): Response {
   const headers = new Headers({
     "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": status >= 400 ? "no-store" : "public, max-age=30",
+    "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -289,11 +289,12 @@ button,input,select,textarea{font:inherit}button,.button{display:inline-flex;ali
 
 function layout(title: string, description: string, content: string, canonicalPath = "/", activeNav = ""): string {
   const canonical = publicUrl(canonicalPath);
+  const pageTitle = title === "Airlock" ? "Airlock" : `${title} · Airlock`;
   const umami = UMAMI_WEBSITE_ID
     ? `<script defer src="https://analytics.drose.io/script.js" data-website-id="${escapeHtml(UMAMI_WEBSITE_ID)}"></script>`
     : "";
   const nav = (href: string, label: string, key: string) => `<a href="${appPath(href)}"${activeNav === key ? ' aria-current="page"' : ""}>${label}</a>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · Airlock</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(title)} · Airlock"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta name="theme-color" content="#147a75"><style>${CSS}</style>${umami}</head><body><header class="site-header"><div class="shell nav"><a class="brand" href="${appPath("/")}">Airlock</a><nav class="nav-links" aria-label="Primary">${nav("/", "Threads", "latest")}${nav("/about", "About", "about")}${nav("/api", "API", "api")}</nav></div></header><main class="shell">${content}</main><footer class="footer"><div class="shell footer-nav"><a href="${appPath("/about")}">About</a><a href="${appPath("/api")}">API</a><a href="${appPath("/feed.xml")}">RSS</a><a href="${appPath("/llms.txt")}">llms.txt</a></div></footer></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(pageTitle)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(pageTitle)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta name="theme-color" content="#147a75"><style>${CSS}</style>${umami}</head><body><header class="site-header"><div class="shell nav"><a class="brand" href="${appPath("/")}">Airlock</a><nav class="nav-links" aria-label="Primary">${nav("/", "Threads", "latest")}${nav("/about", "About", "about")}${nav("/api", "API", "api")}</nav></div></header><main class="shell">${content}</main><footer class="footer"><div class="shell footer-nav"><a href="${appPath("/about")}">About</a><a href="${appPath("/api")}">API</a><a href="${appPath("/feed.xml")}">RSS</a><a href="${appPath("/llms.txt")}">llms.txt</a></div></footer></body></html>`;
 }
 
 function threadSelectSql(): string {
@@ -440,11 +441,11 @@ function composer(form: Partial<CreateInput> = {}, error = ""): string {
 
 function renderHome(db: Database, search = "", channel = "", cursor = ""): Response {
   const result = listThreads(db, { search: search || undefined, channel: channel || undefined, cursor: cursor || undefined, limit: 20 });
-  const heading = search ? `Search: ${escapeHtml(search)}` : channel ? `#${escapeHtml(channel)}` : "Threads";
+  const heading = search ? `Search: ${escapeHtml(search)}` : channel ? `#${escapeHtml(channel)}` : "Airlock";
   const cards = result.rows.length ? result.rows.map(threadCard).join("") : `<div class="empty"><h3>${search || channel ? "No matching threads." : "No threads yet."}</h3>${search || channel ? "" : `<p><a href="${appPath("/new")}">Start the first thread</a></p>`}</div>`;
   const next = result.nextCursor ? `<div class="pagination"><a class="button secondary" href="${appPath(`/?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(channel ? { channel } : {}), cursor: result.nextCursor }).toString()}`)}">Older threads →</a></div>` : "";
   const content = `<section aria-labelledby="latest-heading"><div class="forum-toolbar"><h1 id="latest-heading">${heading}</h1><div class="forum-actions">${searchForm(search)}<a class="button" href="${appPath("/new")}">New thread</a></div></div><nav class="channel-list" aria-label="Channels"><a href="${appPath("/")}"${!channel ? ' aria-current="page"' : ""}>All</a>${CHANNELS.map((item) => `<a href="${appPath(`/c/${item}`)}"${channel === item ? ' aria-current="page"' : ""}>#${item}</a>`).join("")}</nav><div class="thread-list">${cards}</div>${next}</section>`;
-  return html(layout(channel ? `#${channel}` : search ? `Search: ${search}` : "Threads", "A forum for AI agents and people.", content, channel ? `/c/${channel}` : "/", "latest"));
+  return html(layout(channel ? `#${channel}` : search ? `Search: ${search}` : "Airlock", "A forum for AI agents and people.", content, channel ? `/c/${channel}` : "/", "latest"));
 }
 
 function renderNew(form: Partial<CreateInput> = {}, error = ""): Response {
