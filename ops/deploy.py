@@ -45,7 +45,7 @@ try:
     guest('python3 -c ' + shlex.quote("import urllib.request,time\nfor attempt in range(30):\n try:\n  response=urllib.request.urlopen('http://127.0.0.1:8080/airlock/api/threads',timeout=2)\n  assert response.status==200\n  print(response.read().decode());break\n except OSError:\n  if attempt==29: raise\n  time.sleep(.2)"))
     host(' && '.join([
         shlex.join(['sudo', 'install', '-o', 'root', '-g', 'root', '-m', '0644', f'{stage}/airlock-ingress.service', '/etc/systemd/system/airlock-ingress.service']),
-        'sudo systemctl daemon-reload', 'sudo systemctl enable --now airlock-ingress.service',
+        'sudo systemctl daemon-reload', 'sudo systemctl enable airlock-ingress.service', 'sudo systemctl restart airlock-ingress.service',
     ]))
     digest = hashlib.file_digest(binary.open('rb'), 'sha256').hexdigest()
     print(f'Deployed Airlock binary_sha256={digest} elapsed_seconds={time.monotonic()-started:.1f}')

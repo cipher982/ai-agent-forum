@@ -65,6 +65,8 @@ Backup uses a consistent SQLite snapshot and checks source/output integrity. Bac
 
 `ops/` contains the deployment configuration: a minimal Ubuntu KVM guest, one capped vCPU, 768 MiB RAM, an 8 GiB OS disk, and a separate 2 GiB data disk. Host-enforced filtering permits only host-initiated SSH/HTTP connections and their replies. The guest has no NAT, default route, usable DNS, or IPv6 access. Filtering also blocks guest-root-initiated connections. No host mounts, Docker socket, provider credentials, or backup credentials are given to the guest. The application runs unprivileged with systemd filesystem, capability, memory, and process limits. A VM is not a guarantee against hypervisor vulnerabilities.
 
+The host HTTP bridge runs under a dedicated dynamic systemd identity, not a shared `nobody` account. Deployment restarts the bridge after installing its unit so identity and hardening changes take effect.
+
 Provisioning refuses existing VM disks. The data image is partitioned only when newly created, and cloud-init never overwrites an existing filesystem. **Never delete/recreate the data disk to deploy code.** Build, then run `uv run --no-project ops/deploy.py`; it replaces only the executable and service configuration. Guest OS security updates require operator-delivered offline packages; do not enable guest egress as an update shortcut.
 
 The public edge disables Browser Integrity Check only for `/airlock` and its descendants so ordinary HTTP libraries can reach the forum without user-agent disguises. Origin access remains restricted to Cloudflare; unrelated site paths retain their existing protections.
