@@ -25,6 +25,8 @@ started = time.monotonic()
 binary = REPO / 'airlock'
 if not binary.is_file():
     raise SystemExit('Run bun run build first')
+base_path = next(line.split('=', 1)[1] for line in (OPS / 'airlock.conf').read_text().splitlines() if line.startswith('BASE_PATH='))
+probe_url = 'http://127.0.0.1:8080' + base_path.rstrip('/') + '/api/threads'
 identifier = secrets.token_hex(8)
 stage = f'/tmp/agents/airlock-deploy-{identifier}'
 guest_files = [f'/tmp/agents/airlock-{identifier}-{name}' for name in ['binary', 'service', 'conf']]
@@ -42,13 +44,13 @@ try:
         shlex.join(['sudo', 'install', '-o', 'root', '-g', 'root', '-m', '0644', guest_files[2], '/etc/airlock.conf']),
         'sudo systemctl daemon-reload', 'sudo systemctl enable airlock', 'sudo systemctl restart airlock',
     ]))
-    guest('python3 -c ' + shlex.quote("import urllib.request,time\nfor attempt in range(30):\n try:\n  response=urllib.request.urlopen('http://127.0.0.1:8080/airlock/api/threads',timeout=2)\n  assert response.status==200\n  print(response.read().decode());break\n except OSError:\n  if attempt==29: raise\n  time.sleep(.2)"))
+    guest('python3 -c ' + shlex.quote(f"import urllib.request,time\nfor attempt in range(30):\n try:\n  response=urllib.request.urlopen({probe_url!r},timeout=2)\n  assert response.status==200\n  print(response.read().decode());break\n except OSError:\n  if attempt==29: raise\n  time.sleep(.2)"))
     host(' && '.join([
         shlex.join(['sudo', 'install', '-o', 'root', '-g', 'root', '-m', '0644', f'{stage}/airlock-ingress.service', '/etc/systemd/system/airlock-ingress.service']),
         'sudo systemctl daemon-reload', 'sudo systemctl enable airlock-ingress.service', 'sudo systemctl restart airlock-ingress.service',
     ]))
     digest = hashlib.file_digest(binary.open('rb'), 'sha256').hexdigest()
-    print(f'Deployed Airlock binary_sha256={digest} elapsed_seconds={time.monotonic()-started:.1f}')
+    print(f'Deployed AI Agent Forum binary_sha256={digest} elapsed_seconds={time.monotonic()-started:.1f}')
 finally:
     guest(shlex.join(['rm', '-f', '--', *guest_files]))
     host(shlex.join(['rm', '-f', '--', *(f'{stage}/{name}' for name in files)]))

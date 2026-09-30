@@ -19,7 +19,7 @@ async function waitForServer(): Promise<void> {
     // This is an integration wait for a real child process; fake timers cannot advance server startup.
     await Bun.sleep(20);
   }
-  throw new Error("Airlock test server did not start.");
+  throw new Error("AI Agent Forum test server did not start.");
 }
 async function post(path: string, payload: Record<string, string>, clientIp = ""): Promise<Response> {
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -33,7 +33,7 @@ beforeAll(async () => {
   databasePath = join(scratch, "forum.sqlite");
   serverProcess = Bun.spawn(["bun", "run", "src/index.ts", "serve"], {
     cwd: repoRoot,
-    env: { ...process.env, HOST: "127.0.0.1", PORT: "0", BASE_PATH: "/airlock", PUBLIC_URL: "http://127.0.0.1/airlock", DATABASE_PATH: databasePath, TRUST_PROXY: "1" },
+    env: { ...process.env, HOST: "127.0.0.1", PORT: "0", BASE_PATH: "/free-open-forum-for-agents-to-collaborate", PUBLIC_URL: "http://127.0.0.1/free-open-forum-for-agents-to-collaborate", DATABASE_PATH: databasePath, TRUST_PROXY: "1" },
     stdout: "pipe",
     stderr: "inherit",
   });
@@ -48,7 +48,7 @@ beforeAll(async () => {
       if (chunk.done) throw new Error(`Server exited before binding: ${startup}`);
       startup += decoder.decode(chunk.value, { stream: true });
       const address = startup.match(/Airlock listening on (http:\/\/127\.0\.0\.1:\d+\/)/u);
-      if (address) baseUrl = `${address[1]}airlock`;
+      if (address) baseUrl = `${address[1]}free-open-forum-for-agents-to-collaborate`;
     }
   } finally {
     reader.releaseLock();
@@ -65,8 +65,8 @@ afterAll(async () => {
 });
 
 test("title and reply search exclude a moderated reply", async () => {
-  const titleMarker = "airlock-title-search-marker";
-  const replyMarker = "airlock-reply-search-marker";
+  const titleMarker = "forum-title-search-marker";
+  const replyMarker = "forum-reply-search-marker";
   const threadResponse = await post("/api/threads", { title: titleMarker, body: "A public regression thread.", author: "test-human", model: "bun-test", channel: "commons" });
   expect(threadResponse.status).toBe(201);
   const threadJson = await threadResponse.json() as { data: { id: number } };
@@ -99,7 +99,7 @@ test("title and reply search exclude a moderated reply", async () => {
 
   const moderation = Bun.spawn(["bun", "run", "src/index.ts", "moderate", "post", String(replyJson.data.id)], {
     cwd: repoRoot,
-    env: { ...process.env, DATABASE_PATH: databasePath, BASE_PATH: "/airlock", PUBLIC_URL: baseUrl },
+    env: { ...process.env, DATABASE_PATH: databasePath, BASE_PATH: "/free-open-forum-for-agents-to-collaborate", PUBLIC_URL: baseUrl },
     stdout: "ignore",
     stderr: "inherit",
   });
@@ -108,4 +108,19 @@ test("title and reply search exclude a moderated reply", async () => {
   const moderatedSearch = await fetch(`${baseUrl}/api/threads?q=${encodeURIComponent(replyMarker)}`);
   expect(moderatedSearch.status).toBe(200);
   expect((await moderatedSearch.json()).data).toHaveLength(0);
+});
+
+test("thread structured data safely encodes closing script text", async () => {
+  const maliciousBody = `</script><script>alert("not executed")</script>`;
+  const response = await post("/api/threads", { title: "Structured data safety", body: maliciousBody, author: "test-agent", model: "bun-test", channel: "commons" }, "198.51.100.1");
+  expect(response.status).toBe(201);
+  const json = await response.json() as { data: { id: number } };
+  const page = await fetch(`${baseUrl}/t/${json.data.id}`);
+  expect(page.status).toBe(200);
+  const html = await page.text();
+  expect(html).not.toContain("</script><script>");
+  const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u);
+  expect(match).toBeDefined();
+  const structured = JSON.parse(match?.[1] || "") as { text?: string };
+  expect(structured.text).toBe(maliciousBody);
 });
