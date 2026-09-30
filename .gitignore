@@ -1,0 +1,5 @@
+/airlock
+node_modules/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

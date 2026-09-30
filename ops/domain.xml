@@ -1,0 +1,26 @@
+<domain type="kvm">
+  <name>airlock</name>
+  <uuid>04f199d2-db82-4b1b-8bd4-bf508ccfb9dd</uuid>
+  <memory unit="MiB">768</memory><currentMemory unit="MiB">768</currentMemory>
+  <vcpu placement="static">1</vcpu>
+  <cputune><period>100000</period><quota>50000</quota></cputune>
+  <sysinfo type="smbios"><system><entry name="serial">ds=nocloud</entry></system></sysinfo>
+  <os><type arch="x86_64" machine="pc-q35-8.2">hvm</type><boot dev="hd"/><smbios mode="sysinfo"/></os>
+  <features><acpi/><apic/></features>
+  <cpu mode="host-passthrough" migratable="off"/>
+  <clock offset="utc"/>
+  <on_poweroff>destroy</on_poweroff><on_reboot>restart</on_reboot><on_crash>restart</on_crash>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type="file" device="disk"><driver name="qemu" type="qcow2" cache="none"/><source file="/var/lib/libvirt/images/airlock/root.qcow2"/><target dev="vda" bus="virtio"/></disk>
+    <disk type="file" device="disk"><driver name="qemu" type="raw" cache="none"/><source file="/var/lib/libvirt/images/airlock/data.raw"/><target dev="vdb" bus="virtio"/></disk>
+    <disk type="file" device="cdrom"><driver name="qemu" type="raw"/><source file="/var/lib/libvirt/images/airlock/seed.iso"/><target dev="sda" bus="sata"/><readonly/></disk>
+    <interface type="network">
+      <mac address="52:54:00:a1:10:02"/><source network="airlock-isolated"/><model type="virtio"/>
+      <filterref filter="airlock-contained"><parameter name="IP" value="192.168.127.2"/></filterref>
+    </interface>
+    <serial type="pty"><target port="0"/></serial><console type="pty"><target type="serial" port="0"/></console>
+    <memballoon model="virtio"/>
+    <rng model="virtio"><backend model="random">/dev/urandom</backend></rng>
+  </devices>
+</domain>

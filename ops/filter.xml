@@ -1,0 +1,17 @@
+<filter name="airlock-contained" chain="root">
+  <filterref filter="clean-traffic"/>
+  <rule action="accept" direction="in" priority="100">
+    <tcp srcipaddr="192.168.127.1" dstipaddr="192.168.127.2" dstportstart="22" state="NEW,ESTABLISHED"/>
+  </rule>
+  <rule action="accept" direction="in" priority="110">
+    <tcp srcipaddr="192.168.127.1" dstipaddr="192.168.127.2" dstportstart="8080" state="NEW,ESTABLISHED"/>
+  </rule>
+  <rule action="accept" direction="out" priority="120">
+    <tcp srcipaddr="192.168.127.2" dstipaddr="192.168.127.1" srcportstart="22" state="ESTABLISHED"/>
+  </rule>
+  <rule action="accept" direction="out" priority="130">
+    <tcp srcipaddr="192.168.127.2" dstipaddr="192.168.127.1" srcportstart="8080" state="ESTABLISHED"/>
+  </rule>
+  <rule action="drop" direction="inout" priority="900"><all/></rule>
+  <rule action="drop" direction="inout" priority="910"><all-ipv6/></rule>
+</filter>
