@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 const rawBasePath = Bun.env.BASE_PATH?.trim() || "/free-open-forum-for-agents-to-collaborate";
 const BASE_PATH = rawBasePath === "/" ? "/" : `/${rawBasePath.replace(/^\/+|\/+$/g, "")}`;
 const PUBLIC_URL = (Bun.env.PUBLIC_URL?.trim() || `https://drose.io${BASE_PATH}`).replace(/\/+$/, "");
-const HOST = Bun.env.HOST?.trim() || "0.0.0.0";
+const HOST = Bun.env.HOST?.trim() || "127.0.0.1";
 const PORT = Number(Bun.env.PORT || "8080");
 const DATABASE_PATH = Bun.env.DATABASE_PATH?.trim() || "/var/lib/airlock/forum.sqlite";
 const TRUST_PROXY = Bun.env.TRUST_PROXY === "1";
@@ -614,7 +614,54 @@ let globalRateWindow = 0;
 let globalRateCount = 0;
 const ipRate = new Map<string, { window: number; count: number }>();
 
-function checkWriteRate(ip: string): number | null {
+function parseIpv6Groups(ip: string): number[] | null {
+  const zoneIndex = ip.indexOf("%");
+  const clean = (zoneIndex >= 0 ? ip.slice(0, zoneIndex) : ip).toLowerCase();
+  if (!clean.includes(":")) return null;
+  const parts = clean.split("::");
+  if (parts.length > 2) return null;
+
+  const parseSegment = (seg: string): number[] | null => {
+    if (!seg) return [];
+    const tokens = seg.split(":");
+    const out: number[] = [];
+    for (let i = 0; i < tokens.length; i += 1) {
+      const token = tokens[i]!;
+      if (token.includes(".")) {
+        if (i !== tokens.length - 1) return null;
+        const octets = token.split(".");
+        if (octets.length !== 4) return null;
+        const nums = octets.map((o) => (/^\d{1,3}$/u.test(o) ? Number(o) : -1));
+        if (nums.some((n) => n < 0 || n > 255)) return null;
+        out.push((nums[0]! << 8) | nums[1]!, (nums[2]! << 8) | nums[3]!);
+      } else {
+        if (!/^[0-9a-f]{1,4}$/u.test(token)) return null;
+        out.push(Number.parseInt(token, 16));
+      }
+    }
+    return out;
+  };
+
+  const head = parseSegment(parts[0] || "");
+  const tail = parts.length === 2 ? parseSegment(parts[1] || "") : [];
+  if (!head || !tail) return null;
+  if (parts.length === 1) return head.length === 8 ? head : null;
+  const missing = 8 - (head.length + tail.length);
+  if (missing < 1) return null;
+  return [...head, ...Array.from({ length: missing }, () => 0), ...tail];
+}
+
+function normalizeRateLimitIp(ip: string): string {
+  const groups = parseIpv6Groups(ip);
+  if (!groups) return ip;
+  if (groups[0] === 0 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0 && groups[4] === 0 && groups[5] === 0xffff) {
+    return `${groups[6]! >> 8}.${groups[6]! & 0xff}.${groups[7]! >> 8}.${groups[7]! & 0xff}`;
+  }
+  return `${groups.slice(0, 4).map((g) => g.toString(16)).join(":")}::/64`;
+}
+
+function checkWriteRate(rawIp: string): number | null {
+  const ip = normalizeRateLimitIp(rawIp);
   const nowWindow = Math.floor(Date.now() / RATE_WINDOW_MS);
   if (globalRateWindow !== nowWindow) {
     globalRateWindow = nowWindow;
@@ -625,11 +672,17 @@ function checkWriteRate(ip: string): number | null {
     return 60;
   }
   if (!existing && ipRate.size >= 4096) {
-    const oldest = ipRate.keys().next().value;
-    if (oldest !== undefined) ipRate.delete(oldest);
+    for (const [key, entry] of ipRate) {
+      if (entry.window !== nowWindow) ipRate.delete(key);
+    }
+    if (ipRate.size >= 4096) {
+      const oldest = ipRate.keys().next().value;
+      if (oldest !== undefined) ipRate.delete(oldest);
+    }
   }
   let entry = ipRate.get(ip);
   if (!entry || entry.window !== nowWindow) {
+    if (entry) ipRate.delete(ip);
     entry = { window: nowWindow, count: 0 };
     ipRate.set(ip, entry);
   }
@@ -639,6 +692,10 @@ function checkWriteRate(ip: string): number | null {
 }
 
 function isAllowedOrigin(request: Request): boolean {
+  const secFetchSite = request.headers.get("sec-fetch-site")?.trim().toLowerCase();
+  if (secFetchSite && secFetchSite !== "same-origin" && secFetchSite !== "none") {
+    return false;
+  }
   const origin = request.headers.get("origin");
   if (!origin) return true;
   try {
